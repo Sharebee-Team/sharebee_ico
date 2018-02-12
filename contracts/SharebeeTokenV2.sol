@@ -215,27 +215,35 @@ define phases caps and discounts?
 
 contract SharebeeTokenV2 is StandardToken {
 
-  mapping (address => bool) public owners;                  //Identifiys certain addresses as owners
+  //token properties
   string public constant name = "Sharebee Token";           //Token name
   uint8 public constant decimals = 18;                      //number of decimals to show
-  string public constant symbol = "SHBT";                    //token symbol
-  uint256 public constant initial_supply = 100000;          //Initial supply of tokens
+  string public constant symbol = "SHBT";                   //token symbol
+  uint256 public constant overall_supply = 100000;         //total supply of tokens
+  uint256 public constant exchange_supply = 80000;          //Initial supply of exchange tokens
+  uint256 public constant utility_supply = 20000;           //Initial supply of utility tokens
+  Phase[4] public phases;                                   //ICO phases
+  //mapping(address => uint256) public utility_balances;      //
   uint public constant ownerAgreeThreshold = 2;             //threshold to execute consensus actions
-  address public fundWallet;                                //wallet that has all sharebee tokens
-  address public etherWallet;                               //wallet that can withdraw ether from contract
+
+
   uint public ownerCount = 1;
   uint public fundWalletOwnerAdds = 0;
-  bool public mintable = false;
 
-  Phase[4] public phases;
+
+
 
   //consensus admin request
   AdminChangeRequest public adminChangeRequest;
 
-  // fundWallet controlled state variables
-  // halted: halt buying due to emergency, tradeable: signal that SHBT is running
-  bool public halted = false;
-  bool public tradeable = false;
+  // admin consensus controlled state variables
+  mapping (address => bool) public owners;                  //Identifiys certain addresses as owners
+  address public fundWallet;                                //wallet that has all sharebee tokens
+  address public etherWallet;                               //wallet that can withdraw ether from contract
+  bool public mintable = false;                             //signal token is can mint
+  bool public tradeable = false;                            // signal that SHBT is running
+  bool public halted = false;                               // halt buying due to emergency,
+
 
   //STRUCTS
 
@@ -256,6 +264,7 @@ contract SharebeeTokenV2 is StandardToken {
 
   //EVENTS
   event Mint(address indexed to, uint256 amount);
+  event BuyToken(address indexed to, uint256 _wei, uint256 _shbt, uint timeOfBuy);
   event AddedOwner(address indexed who);
   event RemovedOwner(address indexed who);
   event ChangedFundWallet(address indexed to);
@@ -295,6 +304,7 @@ contract SharebeeTokenV2 is StandardToken {
   function addOwner(address addr) public isFundWallet returns(bool){
     require(fundWalletOwnerAdds < 2 && !owners[addr]); //fund wallet can add the first two owners
     owners[addr] = true;
+    AddedOwner(addr);
     fundWalletOwnerAdds++;
     ownerCount++;
     return true;
@@ -328,10 +338,20 @@ contract SharebeeTokenV2 is StandardToken {
   }
   //End Test Functions
 
+
+
+
   // OWNER Functions
   function mint(uint256 _amount) isOwner isMintable public returns (bool) {
+      //type 1 is exchangable balance, type 2 is utility balance
       totalSupply_ = totalSupply_.add(_amount);
-      balances[fundWallet] = balances[fundWallet].add(_amount);
+      //if(_type == 1){
+        balances[fundWallet] = balances[fundWallet].add(_amount);
+      /* }
+      else if(_type == 2){
+        utility_balances[fundWallet] = utility_balances[fundWallet].add(_amount);
+      } */
+
       Mint(fundWallet, _amount);
       Transfer(address(0), fundWallet, _amount);
       return true;
@@ -356,46 +376,58 @@ contract SharebeeTokenV2 is StandardToken {
           uint256 amount = balances[fundWallet];
           balances[fundWallet].sub(amount);
           balances[adminChangeRequest.addr].add(amount);
+          /* utility_balances[fundWallet].sub(amount);
+          utility_balances[adminChangeRequest.addr].add(amount); */
           fundWallet = adminChangeRequest.addr;
+          ChangedFundWallet(adminChangeRequest.addr);
 
         }
         else if(adminChangeRequest._type == 2 && ownerCount < 3 && !owners[adminChangeRequest.addr]){
           //add owner
           owners[adminChangeRequest.addr] = true;
+          AddedOwner(adminChangeRequest.addr);
           ownerCount++;
         }
         else if(adminChangeRequest._type == 3 && ownerCount == 3 && owners[adminChangeRequest.addr]){
           //remove owner
           owners[adminChangeRequest.addr] = false;
+          RemovedOwner(adminChangeRequest.addr);
           ownerCount--;
         }
         else if(adminChangeRequest._type == 4 && ownerCount == 3){
           //ether wallet change
           etherWallet = adminChangeRequest.addr;
+          ChangedFundWallet(adminChangeRequest.addr);
         }
         else if(adminChangeRequest._type == 5 && ownerCount == 3){ // NOTE: all types >= 5 are switches and therefore dont need addresses
           //mintable switch
           mintable = false;
+          ToggledMintable(false);
         }
         else if(adminChangeRequest._type == 6 && ownerCount == 3){
           //mintable switch
           mintable = true;
+          ToggledMintable(true);
         }
         else if(adminChangeRequest._type == 7 && ownerCount == 3){
           //tradable switch
           tradeable = false;
+          ToggledTradeable(false);
         }
         else if(adminChangeRequest._type == 8 && ownerCount == 3){
           //tradable switch
           tradeable = true;
+          ToggledTradeable(true);
         }
         else if(adminChangeRequest._type == 9 && ownerCount == 3){
           //halted switch
           halted = false;
+          ToggledHalted(false);
         }
         else if(adminChangeRequest._type == 10 && ownerCount == 3){
           //halted switch
           halted = true;
+          ToggledHalted(true);
         }
         else{
           return false;
@@ -430,7 +462,7 @@ contract SharebeeTokenV2 is StandardToken {
     if(balances[fundWallet] == 0){
       return 0;
     }
-    uint256 amountTokensSold = initial_supply - balances[fundWallet];
+    uint256 amountTokensSold = exchange_supply - balances[fundWallet];
     for(uint i = 0; i < phases.length; i++){
       if(amountTokensSold >= phases[i].tokenStart && amountTokensSold < phases[i].tokenEnd){
         if(phases[i].bonusDenominator == 0){
@@ -459,11 +491,10 @@ contract SharebeeTokenV2 is StandardToken {
     uint256 tokenAmount = getTokensWithBonus(msg.value, _USDToWei);
 
 
-
     require(tokenAmount <= balances[fundWallet]);
     balances[_for] = balances[_for].add(tokenAmount);
     balances[fundWallet] = balances[fundWallet].sub(tokenAmount);
-
+    BuyToken(_for, msg.value, tokenAmount, now);
     forwardFunds();
   }
 
@@ -475,8 +506,9 @@ contract SharebeeTokenV2 is StandardToken {
     fundWallet = msg.sender;
     etherWallet = msg.sender;
     owners[msg.sender] = true;
-    totalSupply_ = initial_supply;
-    balances[fundWallet] = initial_supply;
+    totalSupply_ = overall_supply;
+    balances[fundWallet] = overall_supply;
+    //utility_balances[fundWallet] = utility_supply;
 
     //admin changes
     address[] memory adminChangeArr;
@@ -497,7 +529,7 @@ contract SharebeeTokenV2 is StandardToken {
     phases[2].bonusDenominator = 10;
 
     phases[3].tokenStart = 3001;
-    phases[3].tokenEnd = initial_supply;
+    phases[3].tokenEnd = exchange_supply;
     phases[3].bonusDenominator = 0;
   }
 
