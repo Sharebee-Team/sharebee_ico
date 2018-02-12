@@ -1,5 +1,28 @@
 pragma solidity ^0.4.4;
 
+/*
+
+
+
+
+
+This is OLD STORAGE CONTRACT check StorageV2 for more current version
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*/
+
 
 
 /**
@@ -218,7 +241,7 @@ contract Storage is StandardToken {
   string public constant symbol = "SHT";                    //token symbol
   uint256 public constant initial_supply = 100000;          //Initial supply of tokens
   address[] public accepted;                                //accepted addresses to execute api transactions
-  
+
   /**
   * @dev modifier to check if sender is the creator of the contract
   */
