@@ -216,9 +216,9 @@ define phases caps and discounts?
 contract SharebeeTokenV2 is StandardToken {
 
   //token properties
-  string public constant name = "Sharebee Token";           //Token name
+  string public constant name = "Tom Token";           //Token name
   uint8 public constant decimals = 18;                      //number of decimals to show
-  string public constant symbol = "SHBT";                   //token symbol
+  string public constant symbol = "TOMT";                   //token symbol
   uint256 public constant overall_supply = 100000;         //total supply of tokens
   uint256 public constant exchange_supply = 80000;          //Initial supply of exchange tokens
   uint256 public constant utility_supply = 20000;           //Initial supply of utility tokens
