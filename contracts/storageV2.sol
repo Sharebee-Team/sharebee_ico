@@ -1,7 +1,7 @@
 pragma solidity ^0.4.4;
 
 contract StorageV2 {
-  address internal creator;
+  address public owner;
   uint256 public constant totalSupply = 10000;
   uint internal creatorAddCount = 0;
   uint internal ownerCount = 1;
@@ -30,7 +30,7 @@ contract StorageV2 {
 
 
   modifier isCreator(){
-    require(creator == msg.sender);
+    require(owner == msg.sender);
     _;
   }
 
@@ -59,6 +59,10 @@ contract StorageV2 {
     return true;
   }
 
+  function getAcceptedAddresses() public constant isOwner returns(address[]){
+    return accepted;
+  }
+
   function removeAcceptedAddress(address addr) internal returns(bool){
     require(accepted.length > 0);
     bool found = false;
@@ -76,7 +80,6 @@ contract StorageV2 {
       }
     }
     delete acc[accepted.length - 1];
-    acc.length--;
     accepted = acc;
     return true;
   }
@@ -135,7 +138,7 @@ contract StorageV2 {
   }
 
   // SERVICE CONTRACT FUNCTIONS
-  function totalSupply() public constant returns (uint256) {
+  function getTotalSupply() public pure returns (uint256) {
     return totalSupply;
   }
 
@@ -150,7 +153,8 @@ contract StorageV2 {
 
   // CONSTRUCTOR
   function StorageV2() public{
-    creator = msg.sender;
+    owner = msg.sender;
+    owners[msg.sender] = true;
     balances[msg.sender] = totalSupply;
   }
 

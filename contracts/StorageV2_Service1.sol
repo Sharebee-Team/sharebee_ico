@@ -53,7 +53,7 @@ contract StorageV2_Service1{
   bool public addressSet;
   address public owner;
   address public storage_address;       //storage for all transactions
-  StorageV2_Interface public storage;
+  Storage_Interface public storage_contract_instance;
 
   modifier isOwner(){
       require(msg.sender == owner);
@@ -66,8 +66,9 @@ contract StorageV2_Service1{
   function setStorageAddress(address st) public isOwner returns(bool){
     require(st != address(0));
     storage_address = st;
-    storage = StorageV2_Interface(st);
+    //storage_contract_instance = Storage_Interface(st);
     addressSet = true;
+    return true;
   }
 
   function getStorageAddress() public constant returns(address){
@@ -85,9 +86,9 @@ contract StorageV2_Service1{
 
     uint256 shbt_value = convertToSHBT(msg.value, 'ETH');
 
-    uint256 destBalance = storage.getBalance(_dest);
+    uint256 destBalance = storage_contract_instance.getBalance(_dest);
     destBalance += destBalance.add(shbt_value);
-    require(storage.setBalance(_dest, destBalance));
+    require(storage_contract_instance.setBalance(_dest, destBalance));
 
     return true;
   }
@@ -112,7 +113,7 @@ contract StorageV2_Service1{
     }
   }
 
-  function SharebeeToken() public{
+  function StorageV2_Service1() public{
     owner = msg.sender;
     addressSet = false;
   }
