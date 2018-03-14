@@ -1,5 +1,20 @@
 pragma solidity ^0.4.4;
 
+/*
+FIAT balance
+currencyAmt{
+  code: USD, CAD, etc.
+  amount: 100
+}
+
+
+
+
+
+
+
+
+*/
 contract StorageV2 {
   address public owner;
   uint256 public constant totalSupply = 10000;
@@ -7,10 +22,22 @@ contract StorageV2 {
   uint internal ownerCount = 1;
   mapping(address => bool) owners;
   address[] public accepted;                                //accepted addresses to execute api transactions
-  mapping(address => uint256) balances;
+  //mapping(address => uint256) balances;
   uint public constant ownerAgreeThreshold = 2;             //threshold to execute consensus actions
   //consensus admin request
   AdminChangeRequest public adminChangeRequest;
+
+
+
+  //users balance in token types
+  mapping(address =>mapping(string => uint256)) balances;
+  string[] currencies = ['USD', 'BTC', 'ETH', 'SHBX'];
+
+  mapping(address => mapping(address => uint256)) testmap;
+
+  function test1(address _to, uint256 _amt) public{
+    testmap[msg.sender][_to] = _amt;
+  }
 
 
   // STRUCTS
@@ -19,6 +46,11 @@ contract StorageV2 {
     address[] acceptingOwners;
     uint _type;
     //  0 is none, 1 is add new accepted address, 2 is remove accepted address, 3 is add owner, 4 is remove owner
+  }
+
+  struct Transaction{
+    uint256 id;
+
   }
 
   // MODIFIERS
@@ -57,6 +89,10 @@ contract StorageV2 {
     creatorAddCount++;
     ownerCount++;
     return true;
+  }
+
+  function addCurrency(string cur) public isOwner returns(bool){
+    currencies.push(cur);
   }
 
   function getAcceptedAddresses() public constant isOwner returns(address[]){

@@ -48,7 +48,13 @@ contract('SharebeeToken', function([owner,owner2, owner3]) {
     let removeAddress = await sbStorage.getAcceptedAddresses.call({from: owner});
     console.log("Can you remove addresses with multi signature?", !removeAddress.includes(sharebeeToken.address));
     assert(!removeAddress.includes(sharebeeToken.address));
+  });
 
+  it("is testing some mapping stuff", async function(){
+    await sbStorage.test1(owner2, 10, {from: owner});
+    await sbStorage.test1(owner3, 200, {from: owner});
+    let testy = await sbStorage.test2({from: owner});
+    console.log("TEST RESULTS:   ",testy)
   });
 
 });
