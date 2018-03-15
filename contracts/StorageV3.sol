@@ -1,4 +1,4 @@
-pragma solidity ^0.4.4;
+pragma solidity ^0.4.9;
 
 
 contract StorageV3 {
@@ -18,7 +18,7 @@ contract StorageV3 {
   // CONSTRUCTOR
   function StorageV3() public{
     creator = msg.sender;
-    addressStorage[keccak256("owner.address",msg.sender)] = msg.sender; // creator is the first owner
+    addressStorage[keccak256("storage.owner.address",msg.sender)] = msg.sender; // creator is the first owner
   }
 
   // STRUCTS
@@ -32,7 +32,7 @@ contract StorageV3 {
 
   // MODIFIERS
   modifier isOwner(){
-      require(addressStorage[keccak256("owner.address",msg.sender)] != 0x0);
+      require(addressStorage[keccak256("",msg.sender)] != 0x0);
       _;
   }
 
@@ -49,14 +49,14 @@ contract StorageV3 {
 
   // INTERNAL HELPER FUNCTIONS
   function removeOwner(address addr) internal {
-    require(ownerCount == 3 && addressStorage[keccak256("owner.address",addr)] != 0x0); //fund wallet must add the first two owners
-    delete addressStorage[keccak256("owner.address",addr)];
+    require(ownerCount == 3 && addressStorage[keccak256("storage.owner.address",addr)] != 0x0); //fund wallet must add the first two owners
+    delete addressStorage[keccak256("storage.owner.address",addr)];
     ownerCount--;
   }
 
   function addOwner(address addr) internal {
-    require(ownerCount == 2 && addressStorage[keccak256("owner.address",addr)] == 0x0 && creatorAddCount == 2); //fund wallet must add the first two owners
-    addressStorage[keccak256("owner.address",addr)] = addr;
+    require(ownerCount == 2 && addressStorage[keccak256("storage.owner.address",addr)] == 0x0 && creatorAddCount == 2); //fund wallet must add the first two owners
+    addressStorage[keccak256("storage.owner.address",addr)] = addr;
     ownerCount++;
   }
 
@@ -75,7 +75,7 @@ contract StorageV3 {
   //ADMIN AND CREATOR ACTIONS
   function addOwnerCreator(address addr) public isCreator returns(bool){
     require(creatorAddCount < 2);
-    addressStorage[keccak256("owner.address",addr)] = addr;
+    addressStorage[keccak256("storage.owner.address",addr)] = addr;
     ownerCount++;
     creatorAddCount++;
     return true;
