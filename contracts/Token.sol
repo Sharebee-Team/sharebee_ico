@@ -52,13 +52,12 @@ library SafeMath {
  /* New ERC23 contract interface */
 
 contract ERC223 {
-  uint public totalSupply;
-  function balanceOf(address who) public view returns (uint);
+  function balanceOf(address who) public constant returns (uint256);
 
-  function name() public view returns (string _name);
-  function symbol() public view returns (string _symbol);
-  function decimals() public view returns (uint8 _decimals);
-  function totalSupply() public view returns (uint256 _supply);
+  function name() public constant returns (string _name);
+  function symbol() public constant returns (string _symbol);
+  function decimals() public constant returns (uint8 _decimals);
+  function totalSupply() public constant returns (uint256 _supply);
 
   function transfer(address to, uint value) public returns (bool ok);
   function transfer(address to, uint value, bytes data) public returns (bool ok);
@@ -120,7 +119,7 @@ contract Token is ERC223{
     totalSupply = 600000000;
 
     // WHO SHOULD GET THE INITIALSUPPLY
-    sharebeeStorage.setUint(keccak256(privateBalanceString), totalSupply);
+    //sharebeeStorage.setUint(keccak256(privateBalanceString), totalSupply);
   }
 
   //admin ACTIONS
@@ -167,7 +166,9 @@ contract Token is ERC223{
     adminChangeRequest.name = "";
   }
 
-
+  /*
+    GET OWNER COUNT FROM STORAGE TO MAKE SURE THERE ARE 3
+  */
   function adminChangeAction(uint256 _amount, uint256 _type, string _name) public isOwner returns(bool){
     if(adminChangeRequest._type == _type && adminChangeRequest.amount == _amount && keccak256(adminChangeRequest.name) == keccak256(_name)  && adminChangeRequest._type != 0 && _amount > 0){
       for(uint i = 0; i < adminChangeRequest.acceptingOwners.length; i++){

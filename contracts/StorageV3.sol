@@ -13,6 +13,19 @@ contract StorageV3 {
   //consensus admin request
   AdminChangeRequest public adminChangeRequest;
 
+  //TEST FUNCTIONS
+  function checkOwner(address addr) public constant returns(bool){
+    return addressStorage[keccak256("owner.address",addr)] != 0x0;
+  }
+
+  function checkAddress(address addr) public constant returns(bool){
+    return addressStorage[keccak256("contract.address",addr)] != 0x0;
+  }
+
+  function checkFundWallet(address addr) public constant returns(bool){
+    return addressStorage[keccak256("fund.address", addr)] == 0x0;
+  }
+
   // CONSTRUCTOR
   function StorageV3(address _fundWallet) public{
     creator = msg.sender;
@@ -37,7 +50,7 @@ contract StorageV3 {
 
   // MODIFIERS
   modifier isOwner(){
-      require(addressStorage[keccak256("",msg.sender)] != 0x0);
+      require(addressStorage[keccak256("owner.address",msg.sender)] != 0x0);
       _;
   }
 
@@ -77,8 +90,12 @@ contract StorageV3 {
     delete addressStorage[keccak256("contract.name",name)];
   }
 
+  //FUND WALLET IS THE WALLET ADDRESS THAT ETHER WILL BE FORWARDED TO UPON ICO CONTRIBUTION
   function changeFundWallet(address addr) private{
     require(ownerCount == 3);
+    address faddr = addressStorage[keccak256("fund.name", "fundWallet")];
+
+    delete addressStorage[keccak256("fund.address", faddr)];
     addressStorage[keccak256("fund.address", addr)] = addr;
     addressStorage[keccak256("fund.name", "fundWallet")] = addr;
   }
@@ -92,7 +109,7 @@ contract StorageV3 {
 
   //ADMIN AND CREATOR ACTIONS
   function addOwnerCreator(address addr) public isCreator returns(bool){
-    require(creatorAddCount < 2);
+    require(creatorAddCount < 2 && addressStorage[keccak256("owner.address",addr)] == address(0));
     addressStorage[keccak256("owner.address",addr)] = addr;
     ownerCount++;
     creatorAddCount++;
@@ -215,4 +232,7 @@ contract StorageV3 {
   function deleteBool(bytes32 _key) onlyAcceptedAddress external {
     delete boolStorage[_key];
   }
+
+
+
 }

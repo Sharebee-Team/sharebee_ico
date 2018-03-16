@@ -106,26 +106,27 @@ contract ICO{
   function buy(address _to, uint _value, bytes _data, string _custom_fallback) public isAcceptedAmount payable returns (bool success) {
 
     if(isContract(_to)) {
-        uint256 _senderBalance = balanceOfSharebeePublic();
+        uint256 _sharebeeBalance = balanceOfSharebeePublic();
         uint256 _destBalance = balanceOf(_to);
-        if (_senderBalance < _value) revert();
+        if (_sharebeeBalance < _value) revert();
         //compute transaction result
-        _senderBalance = _senderBalance.sub(_value);
+        _sharebeeBalance = _sharebeeBalance.sub(_value);
         _destBalance = _destBalance.add(_value);
         assert(_to.call.value(0)(bytes4(keccak256(_custom_fallback)), msg.sender, _value, _data));
 
         //set values
         sharebeeStorage.setUint(keccak256("user.balance.SHBX", _to), _destBalance);
-        sharebeeStorage.setUint(keccak256(balanceOfSharebeePublic), _senderBalance);
+        sharebeeStorage.setUint(keccak256(publicBalanceString), _sharebeeBalance);
         forwardFunds();
         Buy(msg.sender, _to, _value, _data);
         return true;
     }
     else {
-        return buyToAddress(_to, _value, _data);
+      return true;
+        //return buyToAddress(_to, _value, _data);
     }
   }
-  // Function that is called when a user or another contract wants to buy funds .
+   // Function that is called when a user or another contract wants to buy funds .
   function buy(address _to, uint _value, bytes _data) public payable returns (bool success) {
     if(isContract(_to)) {
         return buyToContract(_to, _value, _data);
@@ -148,15 +149,15 @@ contract ICO{
 
   //function that is called when transaction target is an address
   function buyToAddress(address _to, uint _value, bytes _data) private isAcceptedAmount returns (bool success) {
-    uint256 _senderBalance = balanceOfSharebeePublic();
+    uint256 _sharebeeBalance = balanceOfSharebeePublic();
     uint256 _destBalance = balanceOf(_to);
-    if (_senderBalance < _value) revert();
+    if (_sharebeeBalance < _value) revert();
     //compute transaction result
-    _senderBalance = _senderBalance.sub(_value);
+    _sharebeeBalance = _sharebeeBalance.sub(_value);
     _destBalance = _destBalance.add(_value);
     //set values
     sharebeeStorage.setUint(keccak256("user.balance.SHBX", _to), _destBalance);
-    sharebeeStorage.setUint(keccak256(balanceOfSharebeePublic), _senderBalance);
+    sharebeeStorage.setUint(keccak256(publicBalanceString), _sharebeeBalance);
     forwardFunds();
     Buy(msg.sender, _to, _value, _data);
     return true;
@@ -164,15 +165,18 @@ contract ICO{
 
   //function that is called when transaction target is a contract
   function buyToContract(address _to, uint _value, bytes _data) private isAcceptedAmount returns (bool success) {
-    uint256 _senderBalance = balanceOfSharebeePublic();
+    uint256 _sharebeeBalance = balanceOfSharebeePublic();
     uint256 _destBalance = balanceOf(_to);
-    if (_senderBalance < _value) revert();
+    if (_sharebeeBalance < _value) revert();
     //compute transaction result
-    _senderBalance = _senderBalance.sub(_value);
+    _sharebeeBalance = _sharebeeBalance.sub(_value);
     _destBalance = _destBalance.add(_value);
 
     ContractReceiver receiver = ContractReceiver(_to);
     receiver.tokenFallback(msg.sender, _value, _data);
+
+    sharebeeStorage.setUint(keccak256("user.balance.SHBX", _to), _destBalance);
+    sharebeeStorage.setUint(keccak256(publicBalanceString), _sharebeeBalance);
     forwardFunds();
     Buy(msg.sender, _to, _value, _data);
     return true;
