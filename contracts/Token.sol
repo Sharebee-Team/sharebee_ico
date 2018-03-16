@@ -69,13 +69,7 @@ contract ERC223 {
 
 /*
 TODO:
-  NOTE: owner is the sharebee multi-sig company wallet
-  owner has mint and burn privilages
-  sharebee_private has everything and is multi sig wallet
-  sharebee_public is the ico balance -- operates like just another user -- all buys are from the public balance
-  --CREATE ALLOCATE function that transfers from sharebee_private to specified sharebee_account
-  --CREATE RETREIVE function that transfers from specified sharebee_account to sharebee_private
-  
+  sharebee_public is the public balance -- operates like just another user -- all buys are from the public balance
 
   sharebee_family is the family balance
 */
@@ -93,7 +87,29 @@ contract Token is ERC223{
   uint256 public totalSupply;
   uint256 public constant exchange_supply = 360000000;          //Initial supply of exchange tokens
   uint256 public constant utility_supply =  120000000;           //Initial supply of utility tokens
-  bool public mintable;
+  uint public constant ownerAgreeThreshold = 2;             //threshold to execute consensus actions
+  string private constant privateBalanceString = "sharebee_private.balance.SHBX";
+  //string private constant publicBalanceString = "sharebee_public.balance.SHBX";
+  //consensus admin request
+  AdminChangeRequest public adminChangeRequest;
+
+  // Structs
+  struct AdminChangeRequest{
+    uint256 amount;
+    address[] acceptingOwners;
+    uint _type;
+    string name;
+    //  0 is none,
+    //1 is allocate amount to specified sharebee account from sharebee_private,
+    //2 retrieve amount from specified sharebee account to sharebee_private,
+    //3 is mint amount in sharebee_private,
+    //4 is burn amount in sharebee_private
+  }
+
+  modifier isOwner(){
+    require(sharebeeStorage.getAddress(keccak256("owner.address",msg.sender)) != 0x0);
+    _;
+  }
 
   //Constructor
   function Token(address _storageAddress) public{
@@ -102,9 +118,110 @@ contract Token is ERC223{
     decimals = 0;
     symbol = "SHBX";
     totalSupply = 600000000;
-    mintable = false;
-    sharebeeStorage.setUint(keccack("sharebee_private.balance.SHBX", msg.sender), totalSupply;
+
+    // WHO SHOULD GET THE INITIALSUPPLY
+    sharebeeStorage.setUint(keccak256(privateBalanceString), totalSupply);
   }
+
+  //admin ACTIONS
+  function mint(uint256 _amount) private {
+    uint256 res = sharebeeStorage.getUint(keccak256(privateBalanceString));
+    res = res.add(_amount);
+    sharebeeStorage.setUint(keccak256(privateBalanceString), res);
+  }
+
+  function burn(uint256 _amount) private {
+    uint256 res = sharebeeStorage.getUint(keccak256(privateBalanceString));
+    require(res >= _amount);
+    res = res.sub(_amount);
+    sharebeeStorage.setUint(keccak256(privateBalanceString), res);
+  }
+
+  //Places funds from sharebee_private into specified sharebee dest
+  //String can "sharebee_public.balance.SHBX", "sharebee_family.balance.SHBX", etc.
+  function allocateFromPrivate(string destString, uint256 _amount) private{
+    uint256 pvt = sharebeeStorage.getUint(keccak256(privateBalanceString));
+    uint256 des = sharebeeStorage.getUint(keccak256(destString));
+    require(pvt >= _amount);
+    pvt = pvt.sub(_amount);
+    des = des.add(_amount);
+    sharebeeStorage.setUint(keccak256(privateBalanceString), pvt);
+    sharebeeStorage.setUint(keccak256(destString), des);
+  }
+
+  //Retrieve funds from specified sharebee dest and places them back in sharebee_private
+  function consolidateToPrivate(string sourceString, uint256 _amount) private{
+    uint256 pvt = sharebeeStorage.getUint(keccak256(privateBalanceString));
+    uint256 src = sharebeeStorage.getUint(keccak256(sourceString));
+    require(src >= _amount);
+    src = src.sub(_amount);
+    pvt = pvt.add(_amount);
+    sharebeeStorage.setUint(keccak256(sourceString), src);
+    sharebeeStorage.setUint(keccak256(privateBalanceString), pvt);
+  }
+
+  function resetAdminAction() private {
+    //remove admin change request after execution
+    adminChangeRequest._type = 0;
+    adminChangeRequest.amount = 0;
+    adminChangeRequest.name = "";
+  }
+
+
+  function adminChangeAction(uint256 _amount, uint256 _type, string _name) public isOwner returns(bool){
+    if(adminChangeRequest._type == _type && adminChangeRequest.amount == _amount && keccak256(adminChangeRequest.name) == keccak256(_name)  && adminChangeRequest._type != 0 && _amount > 0){
+      for(uint i = 0; i < adminChangeRequest.acceptingOwners.length; i++){
+        if(adminChangeRequest.acceptingOwners[i] == msg.sender){
+          return false; //owner has already requested this change
+        }
+      }
+      adminChangeRequest.acceptingOwners.push(msg.sender);
+      if(adminChangeRequest.acceptingOwners.length >= ownerAgreeThreshold){
+        if(adminChangeRequest._type == 0){
+          return false;
+        }
+        else if(adminChangeRequest._type == 1){
+          //1 is allocate amount to specified dest name from sharebee_private,
+          allocateFromPrivate(_name, _amount);
+          resetAdminAction();
+          return true;
+        }
+        else if(adminChangeRequest._type == 2){
+          //2 retrieve amount from sharebee_public to sharebee_private,
+          consolidateToPrivate(_name, _amount);
+          resetAdminAction();
+          return true;
+        }
+        else if(adminChangeRequest._type == 3){
+          //3 is mint amount in sharebee_private,
+          mint(_amount);
+          resetAdminAction();
+          return true;
+        }
+        else if(adminChangeRequest._type == 4){
+          //4 is burn amount in sharebee_private
+          burn(_amount);
+          resetAdminAction();
+          return true;
+        }
+        else{
+          resetAdminAction();
+          return false;
+        }
+      }
+    }
+    else{
+      // if request is valid has nothing in common with current request OR previous request was fulfilled
+      //drop previous request and replace with new one
+      adminChangeRequest.amount = _amount;
+      adminChangeRequest.acceptingOwners = [msg.sender];
+      adminChangeRequest._type = _type;
+      adminChangeRequest.name = _name;
+      return true;
+    }
+  }
+
+
 
     // Function to access name of token .
   function name() public constant returns (string _name) {
@@ -133,8 +250,8 @@ contract Token is ERC223{
     return (length>0);
   }
 
-  function balanceOf(address _owner) public constant returns (uint balance) {
-    return sharebeeStorage.getUint(keccak("user.balance.SHBX",_owner));
+  function balanceOf(address _owner) public constant returns (uint256 balance) {
+    return sharebeeStorage.getUint(keccak256("user.balance.SHBX",_owner));
   }
 
   // Function that is called when a user or another contract wants to transfer funds .
@@ -150,8 +267,8 @@ contract Token is ERC223{
         assert(_to.call.value(0)(bytes4(keccak256(_custom_fallback)), msg.sender, _value, _data));
 
         //set values
-        sharebeeStorage.setUint(keccack("user.balance.SHBX", _to), _destBalance);
-        sharebeeStorage.setUint(keccack("user.balance.SHBX", msg.sender), _senderBalance);
+        sharebeeStorage.setUint(keccak256("user.balance.SHBX", _to), _destBalance);
+        sharebeeStorage.setUint(keccak256("user.balance.SHBX", msg.sender), _senderBalance);
 
         Transfer(msg.sender, _to, _value, _data);
         return true;
@@ -190,8 +307,8 @@ contract Token is ERC223{
     _senderBalance = _senderBalance.sub(_value);
     _destBalance = _destBalance.add(_value);
     //set values
-    sharebeeStorage.setUint(keccack("user.balance.SHBX", _to), _destBalance);
-    sharebeeStorage.setUint(keccack("user.balance.SHBX", msg.sender), _senderBalance);
+    sharebeeStorage.setUint(keccak256("user.balance.SHBX", _to), _destBalance);
+    sharebeeStorage.setUint(keccak256("user.balance.SHBX", msg.sender), _senderBalance);
     Transfer(msg.sender, _to, _value, _data);
     return true;
   }

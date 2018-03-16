@@ -9,16 +9,16 @@ contract StorageV3 {
   mapping(bytes32 => string)     private stringStorage;
   mapping(bytes32 => uint256)    private uIntStorage;
   mapping(bytes32 => bool)       private boolStorage;
-
-  //mapping(address => uint256) balances;
   uint public constant ownerAgreeThreshold = 2;             //threshold to execute consensus actions
   //consensus admin request
   AdminChangeRequest public adminChangeRequest;
 
   // CONSTRUCTOR
-  function StorageV3() public{
+  function StorageV3(address _fundWallet) public{
     creator = msg.sender;
-    addressStorage[keccak256("storage.owner.address",msg.sender)] = msg.sender; // creator is the first owner
+    addressStorage[keccak256("owner.address",msg.sender)] = msg.sender; // creator is the first owner
+    addressStorage[keccak256("fund.address", _fundWallet)] = _fundWallet;
+    addressStorage[keccak256("fund.name", "fundWallet")] = _fundWallet;
   }
 
   // STRUCTS
@@ -27,7 +27,12 @@ contract StorageV3 {
     string name;
     address[] acceptingOwners;
     uint _type;
-    //  0 is none, 1 is add new accepted address, 2 is remove accepted address, 3 is add owner, 4 is remove owner
+    //  0 is none,
+    //1 is add new accepted address,
+    //2 is remove accepted address,
+    //3 is add owner,
+    //4 is remove owner
+    //5 is changeFundWallet
   }
 
   // MODIFIERS
@@ -41,48 +46,62 @@ contract StorageV3 {
     _;
   }
 
-  modifier onlyAcceptedAddress() {
+  modifier onlyAcceptedAddress(){
       // Make sure the access is permitted to only contracts in our Dapp
       require(addressStorage[keccak256("contract.address", msg.sender)] != 0x0);
       _;
   }
 
   // INTERNAL HELPER FUNCTIONS
-  function removeOwner(address addr) internal {
-    require(ownerCount == 3 && addressStorage[keccak256("storage.owner.address",addr)] != 0x0); //fund wallet must add the first two owners
-    delete addressStorage[keccak256("storage.owner.address",addr)];
+  function removeOwner(address addr) private {
+    require(ownerCount == 3 && addressStorage[keccak256("owner.address",addr)] != 0x0); //fund wallet must add the first two owners
+    delete addressStorage[keccak256("owner.address",addr)];
     ownerCount--;
   }
 
-  function addOwner(address addr) internal {
-    require(ownerCount == 2 && addressStorage[keccak256("storage.owner.address",addr)] == 0x0 && creatorAddCount == 2); //fund wallet must add the first two owners
-    addressStorage[keccak256("storage.owner.address",addr)] = addr;
+  function addOwner(address addr) private {
+    require(ownerCount == 2 && addressStorage[keccak256("owner.address",addr)] == 0x0 && creatorAddCount == 2); //fund wallet must add the first two owners
+    addressStorage[keccak256("owner.address",addr)] = addr;
     ownerCount++;
   }
 
-  function addAcceptedAddress(address addr, string name) internal{
+  function addAcceptedAddress(address addr, string name) private{
     require(ownerCount == 3 && addressStorage[keccak256("contract.address",addr)] == 0x0);
     addressStorage[keccak256("contract.address",addr)] = addr;
     addressStorage[keccak256("contract.name",name)] = addr;
   }
 
-  function removeAcceptedAddress(address addr, string name) internal{
+  function removeAcceptedAddress(address addr, string name) private{
     require(ownerCount == 3 && addressStorage[keccak256("contract.address",addr)] != 0x0);
     delete addressStorage[keccak256("contract.address",addr)];
     delete addressStorage[keccak256("contract.name",name)];
   }
 
+  function changeFundWallet(address addr) private{
+    require(ownerCount == 3);
+    addressStorage[keccak256("fund.address", addr)] = addr;
+    addressStorage[keccak256("fund.name", "fundWallet")] = addr;
+  }
+
+  function resetAdminAction() private{
+    //remove admin change request after execution
+    adminChangeRequest._type = 0;
+    adminChangeRequest.addr = address(0);
+    adminChangeRequest.name = "";
+  }
+
   //ADMIN AND CREATOR ACTIONS
   function addOwnerCreator(address addr) public isCreator returns(bool){
     require(creatorAddCount < 2);
-    addressStorage[keccak256("storage.owner.address",addr)] = addr;
+    addressStorage[keccak256("owner.address",addr)] = addr;
     ownerCount++;
     creatorAddCount++;
     return true;
   }
 
   function adminChangeAction(address addr, uint256 _type, string _name) public isOwner returns(bool){
-    if(adminChangeRequest.addr == addr && addr != address(0) && adminChangeRequest._type == _type && adminChangeRequest._type != 0){
+    if(adminChangeRequest.addr == addr && addr != address(0) && adminChangeRequest._type == _type &&
+    keccak256(adminChangeRequest.name) == keccak256(_name) && adminChangeRequest._type != 0){
       for(uint i = 0; i < adminChangeRequest.acceptingOwners.length; i++){
         if(adminChangeRequest.acceptingOwners[i] == msg.sender){
           return false; //owner has already requested this change
@@ -95,35 +114,38 @@ contract StorageV3 {
         }
         else if(adminChangeRequest._type == 1){
           // add new accepted service contract address
-          addAcceptedAddress(adminChangeRequest.addr);
+          addAcceptedAddress(adminChangeRequest.addr, _name);
+          resetAdminAction();
           return true;
         }
         else if(adminChangeRequest._type == 2){
           // remove current accepted service contract address (NULLIFY)
-          removeAcceptedAddress(adminChangeRequest.addr);
+          removeAcceptedAddress(adminChangeRequest.addr, _name);
+          resetAdminAction();
           return true;
         }
         else if(adminChangeRequest._type == 3){
           // add new owner
-          addOwner(adminChangeRequest.addr)
+          addOwner(adminChangeRequest.addr);
+          resetAdminAction();
           return true;
         }
         else if(adminChangeRequest._type == 4){
           // remove owner
-          removeOwner(adminChangeRequest.addr)
+          removeOwner(adminChangeRequest.addr);
+          resetAdminAction();
           return true;
         }
+        else if(adminChangeRequest._type == 5){
+          //change fund wallet
+          changeFundWallet(adminChangeRequest.addr);
+          resetAdminAction();
+        }
         else{
+          resetAdminAction();
           return false;
         }
-        //remove admin change request after execution
-        adminChangeRequest._type = 0;
-        adminChangeRequest.addr = address(0);
-        adminChangeRequest.name = "";
       }
-    }
-    else if(_type > 4){
-      return false;
     }
     else{
       // if request is valid has nothing in common with current request OR previous request was fulfilled
@@ -193,7 +215,4 @@ contract StorageV3 {
   function deleteBool(bytes32 _key) onlyAcceptedAddress external {
     delete boolStorage[_key];
   }
-
-
-
 }
